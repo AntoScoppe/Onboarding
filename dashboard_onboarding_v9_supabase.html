@@ -198,6 +198,10 @@ textarea.form-input{resize:vertical;min-height:72px;line-height:1.5}
     <button class="filter-btn on" id="fb-activos" onclick="setFilter('activos',this)">Activos</button>
     <button class="filter-btn" id="fb-bajas" onclick="setFilter('bajas',this)">Bajas</button>
     <button class="filter-btn" id="fb-todos" onclick="setFilter('todos',this)">Todos</button>
+    <div style="flex:1"></div>
+    <span style="font-size:11px;color:#aaa;align-self:center">Ordenar:</span>
+    <button class="filter-btn on" id="sort-alpha" onclick="setSort('alpha',this)">A–Z</button>
+    <button class="filter-btn" id="sort-upd" onclick="setSort('updated',this)">Más reciente</button>
   </div>
   <div id="dpto-sections"></div>
 </div>
@@ -322,6 +326,23 @@ textarea.form-input{resize:vertical;min-height:72px;line-height:1.5}
       <div class="modal-title" id="mf-title"></div>
       <div id="mf-content" style="max-height:340px;overflow-y:auto;margin:12px 0"></div>
       <div class="modal-btns"><button class="btn" onclick="closeModal('modal-filter')">Cerrar</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal gestión departamentos -->
+<div id="modal-dptos" style="display:none">
+  <div class="modal-overlay" onclick="closeModal('modal-dptos')">
+    <div class="modal" onclick="event.stopPropagation()" style="width:420px">
+      <div class="modal-title">Gestionar departamentos</div>
+      <div style="max-height:240px;overflow-y:auto;margin-bottom:16px" id="dpto-list"></div>
+      <div style="display:flex;gap:8px;margin-bottom:4px">
+        <input class="form-input" id="new-dpto-name" placeholder="Nombre del nuevo departamento..." style="flex:1" onkeydown="if(event.key==='Enter')addDpto()">
+        <button class="btn btn-primary" onclick="addDpto()">+ Añadir</button>
+      </div>
+      <div class="modal-btns" style="margin-top:14px">
+        <button class="btn" onclick="closeModal('modal-dptos')">Cerrar</button>
+      </div>
     </div>
   </div>
 </div>
@@ -479,12 +500,7 @@ async function deletePerson(id){
 }
 
 async function saveDptos(){
-  showSaving(true);
-  // upsert all dptos
-  const rows=db.dptos.map(d=>({id:d.id,name:d.name}));
-  const {error}=await sb.from('dptos').upsert(rows);
-  if(error) console.error('Error guardando dptos:',error);
-  showSaving(false,'¡Guardado!');
+  // kept for compatibility - individual saves now handled by addDpto/deleteDpto
 }
 
 // UI helpers
@@ -682,25 +698,35 @@ function renderMain(){
 
 function openSummaryFilter(type){
   let list=[],title='';
-  if(type==='cerrados'){list=db.people.filter(p=>isOBCerrado(p));title='OB cerrados';}
-  else{
-    list=db.people.filter(p=>!p.baja&&!isOBCerrado(p));
-    if(type==='alto'){list=list.filter(p=>calcRisk(p)==='Alto');title='Riesgo alto';}
-    else if(type==='medio'){list=list.filter(p=>calcRisk(p)==='Medio');title='Riesgo medio';}
-    else title='OB activos';
+  if(type==='cerrados'){
+    list=db.people.filter(p=>isOBCerrado(p));
+    title='OB cerrados';
+  } else {
+    const todos=db.people.filter(p=>!p.baja&&!isOBCerrado(p));
+    if(type==='alto'){list=todos.filter(p=>calcRisk(p)==='Alto');title='Riesgo alto';}
+    else if(type==='medio'){list=todos.filter(p=>calcRisk(p)==='Medio');title='Riesgo medio';}
+    else{list=todos;title='OB activos';}
   }
-  document.getElementById('mf-title').textContent=title+' — '+list.length+' personas';
+  // Sort alphabetically
+  list=[...list].sort((a,b)=>a.name.localeCompare(b.name,'es'));
+  document.getElementById('mf-title').textContent=title+' — '+list.length+' persona'+(list.length!==1?'s':'');
   document.getElementById('mf-content').innerHTML=list.length
     ?list.map(p=>{
       const dpto=db.dptos.find(d=>d.id===p.dptoId);
+      const risk=calcRisk(p);
       const motivo=p.baja?`<span class="badge b-baja">${p.baja}</span>`:
-        (p.r6&&p.r6.estado==='celebrada'?`<span class="badge b-teal">6M completado</span>`:`<span class="badge ${rb(calcRisk(p))}">${rl(calcRisk(p))}</span>`);
-      return`<div onclick="closeModal('modal-filter');showDetail('${p.id}')" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid rgba(0,0,0,0.07);cursor:pointer">
-        <div class="avatar ${p.avc}" style="width:32px;height:32px;font-size:11px">${p.av}</div>
-        <div style="flex:1"><div style="font-weight:500;font-size:13px">${p.name}</div><div style="font-size:12px;color:#888">${p.role}${dpto?' · '+dpto.name:''}</div></div>
-        ${motivo}</div>`;
+        (p.r6&&p.r6.estado==='celebrada'?`<span class="badge b-teal">6M completado</span>`:
+        `<span class="badge ${rb(risk)}">${rl(risk)}</span>`);
+      return`<div onclick="closeModal('modal-filter');showDetail('${p.id}')" style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:0.5px solid rgba(0,0,0,0.07);cursor:pointer;transition:background .1s" onmouseover="this.style.background='#fafaf8'" onmouseout="this.style.background=''">
+        <div class="avatar ${p.avc}" style="width:34px;height:34px;font-size:12px;flex-shrink:0">${p.av}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:500;font-size:13px">${p.name}</div>
+          <div style="font-size:12px;color:#888;margin-top:1px">${p.role}${dpto?' · '+dpto.name:''}</div>
+        </div>
+        ${motivo}
+      </div>`;
     }).join('')
-    :`<div style="font-size:13px;color:#aaa;padding:10px 0">Sin personas en esta categoría.</div>`;
+    :`<div style="font-size:13px;color:#aaa;padding:16px 0;text-align:center">Sin personas en esta categoría.</div>`;
   document.getElementById('modal-filter').style.display='block';
 }
 
@@ -709,13 +735,23 @@ function setFilter(f,btn){
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');renderDptos(currentDpto);
 }
-function filterDpto(id,btn){
+function setSort(s,btn){
+  currentSort=s;
+  document.querySelectorAll('#sort-alpha,#sort-upd').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  renderDptos(currentDpto);
+}
+
   document.querySelectorAll('.dtab').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');currentDpto=id;renderDptos(id);
 }
 
+let currentSort='alpha'; // 'alpha' | 'updated'
+
 function renderDptos(filter){
-  const dptos=filter==='todos'?db.dptos:db.dptos.filter(d=>d.id===filter);
+  const dptos=filter==='todos'?[...db.dptos]:[...db.dptos.filter(d=>d.id===filter)];
+  // Sort dptos
+  if(currentSort==='alpha') dptos.sort((a,b)=>a.name.localeCompare(b.name,'es'));
   document.getElementById('dpto-sections').innerHTML=dptos.map((d,di)=>{
     let ppl=db.people.filter(p=>p.dptoId===d.id);
     if(currentFilter==='activos') ppl=ppl.filter(p=>!p.baja&&!isOBCerrado(p));
@@ -1112,6 +1148,9 @@ function addAccRow(){
 
 async function saveForm(){
   const name=gv('f-name');if(!name){alert('El nombre es obligatorio.');return;}
+  // Disable save button to prevent double-click
+  const saveBtn=document.querySelector('#s-form .btn-primary');
+  if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='Guardando...';}
   const e45s=getStarArr('e45',EQS.length);
   const r45s=getStarArr('r45',RQS.length);
   const areas=[...document.querySelectorAll('.area-inp')].map(x=>x.value.trim()).filter(Boolean);
@@ -1133,15 +1172,20 @@ async function saveForm(){
     db.people[idx]={...prev,...rec};
     await savePerson(db.people[idx]);
     editingId=null;
+    // Go back to detail
+    currentId=rec.id;
+    showDetail(rec.id);
   } else {
     const av=rec.name.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
     const avc=AVC[db.people.length%AVC.length];
     rec.id='p'+Date.now();rec.av=av;rec.avc=avc;rec.baja=null;
     db.people.push(rec);
     await savePerson(rec);
+    // Go to detail of new person
+    currentId=rec.id;
+    showDetail(rec.id);
   }
-  document.getElementById('notify-ok').style.display='block';
-  setTimeout(()=>{document.getElementById('notify-ok').style.display='none';},2500);
+  if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='Guardar';}
 }
 
 // ============================================
@@ -1206,13 +1250,45 @@ function buildPrint(ppl){
   }).join('');
 }
 
-async function manageDptos(){
-  const cur=db.dptos.map(d=>d.name).join(', ');
-  const input=prompt(`Departamentos actuales:\n${cur}\n\nEscribe los nombres separados por coma:`);
-  if(!input)return;
-  const nombres=input.split(',').map(s=>s.trim()).filter(Boolean);
-  db.dptos=nombres.map((name,i)=>{const ex=db.dptos.find(d=>d.name.toLowerCase()===name.toLowerCase());return ex||{id:'d'+Date.now()+i,name};});
-  await saveDptos();
+function manageDptos(){
+  // Render the dpto manager modal
+  const sorted=[...db.dptos].sort((a,b)=>a.name.localeCompare(b.name,'es'));
+  document.getElementById('dpto-list').innerHTML=sorted.map(d=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid rgba(0,0,0,0.07)" id="drow-${d.id}">
+      <span style="font-size:13px;font-weight:500">${d.name}</span>
+      <button class="btn btn-danger" style="font-size:11px;padding:3px 10px" onclick="deleteDpto('${d.id}')">Eliminar</button>
+    </div>`).join('');
+  document.getElementById('modal-dptos').style.display='block';
+}
+
+async function addDpto(){
+  const input=document.getElementById('new-dpto-name');
+  const name=input.value.trim();
+  if(!name){alert('Escribe un nombre.');return;}
+  const exists=db.dptos.find(d=>d.name.toLowerCase()===name.toLowerCase());
+  if(exists){alert('Este departamento ya existe.');return;}
+  const newDpto={id:'d'+Date.now(),name};
+  db.dptos.push(newDpto);
+  // Save only the new one
+  showSaving(true);
+  const {error}=await sb.from('dptos').insert({id:newDpto.id,name:newDpto.name});
+  if(error){console.error(error);alert('Error al guardar departamento.');}
+  showSaving(false,'¡Guardado!');
+  input.value='';
+  manageDptos(); // re-render list
+  renderMain();
+}
+
+async function deleteDpto(id){
+  const d=db.dptos.find(x=>x.id===id);
+  const hasP=db.people.some(p=>p.dptoId===id);
+  if(hasP){alert(`No se puede eliminar "${d.name}" porque tiene personas asignadas.`);return;}
+  if(!confirm(`¿Eliminar el departamento "${d.name}"?`))return;
+  showSaving(true);
+  await sb.from('dptos').delete().eq('id',id);
+  db.dptos=db.dptos.filter(x=>x.id!==id);
+  showSaving(false,'¡Eliminado!');
+  manageDptos();
   renderMain();
 }
 
