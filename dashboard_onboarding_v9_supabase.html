@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dpto. Personas · Dashboard Onboarding</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;color:#1a1a1a;background:#f5f4f0;padding:24px}
+.app{max-width:980px;margin:0 auto}
+.screen{display:none}.screen.active{display:block}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:0.5px solid rgba(0,0,0,0.12);margin-bottom:20px}
+.page-title{font-size:16px;font-weight:500}
+.page-sub{font-size:12px;color:#666;margin-top:2px}
+.btn{background:none;border:0.5px solid rgba(0,0,0,0.2);border-radius:8px;padding:6px 14px;font-size:13px;color:#444;cursor:pointer;font-family:inherit}
+.btn:hover{background:rgba(0,0,0,0.05)}
+.btn-primary{background:rgba(0,0,0,0.07);color:#1a1a1a;border-color:rgba(0,0,0,0.3);font-weight:500}
+.btn-export{background:#EAF3DE;color:#27500A;border-color:#97C459;font-weight:500}
+.btn-export:hover{background:#C0DD97}
+.btn-danger{color:#A32D2D;border-color:#F09595;background:none}
+.btn-danger:hover{background:#FCEBEB}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.badge{display:inline-block;font-size:11px;font-weight:500;padding:3px 9px;border-radius:20px}
+.b-green{background:#EAF3DE;color:#27500A}.b-amber{background:#FAEEDA;color:#633806}
+.b-red{background:#FCEBEB;color:#791F1F}.b-gray{background:#F1EFE8;color:#555}
+.b-purple{background:#EEEDFE;color:#3C3489}.b-teal{background:#E1F5EE;color:#085041}
+.b-baja{background:#F1EFE8;color:#5F5E5A}.b-blue{background:#E6F1FB;color:#0C447C}
+
+/* Loading */
+.loading-screen{position:fixed;inset:0;background:#f5f4f0;display:flex;align-items:center;justify-content:center;z-index:999;flex-direction:column;gap:12px}
+.loading-spinner{width:32px;height:32px;border:2px solid rgba(0,0,0,0.1);border-top-color:#1a1a1a;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:13px;color:#888}
+.saving-bar{position:fixed;bottom:20px;right:20px;background:#1a1a1a;color:white;font-size:12px;padding:8px 16px;border-radius:20px;z-index:500;display:none;align-items:center;gap:8px}
+.saving-bar.show{display:flex}
+.saving-dot{width:6px;height:6px;border-radius:50%;background:white;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* Summary 4 cols */
+.summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:22px}
+.sum-card{background:white;border-radius:10px;padding:16px 18px;border:0.5px solid rgba(0,0,0,0.08);cursor:pointer;transition:border-color .12s}
+.sum-card:hover{border-color:rgba(0,0,0,0.3);box-shadow:0 2px 8px rgba(0,0,0,0.06)}
+.sum-val{font-size:28px;font-weight:500;margin-bottom:3px}
+.sum-lbl{font-size:12px;color:#666}
+.sum-card.c-red{background:#FCEBEB}.sum-card.c-red .sum-val{color:#A32D2D}.sum-card.c-red .sum-lbl{color:#791F1F}
+.sum-card.c-amber{background:#FAEEDA}.sum-card.c-amber .sum-val{color:#854F0B}.sum-card.c-amber .sum-lbl{color:#633806}
+.sum-card.c-closed{background:#F0F4FF}.sum-card.c-closed .sum-val{color:#2C3E8A}.sum-card.c-closed .sum-lbl{color:#3C4FA8}
+.sum-hint{font-size:11px;color:#aaa;margin-top:4px}
+
+.prox-3col{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:20px}
+.dpto-tabs{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap}
+.dtab{font-size:13px;padding:6px 14px;border-radius:20px;border:0.5px solid rgba(0,0,0,0.2);background:none;color:#666;cursor:pointer;font-family:inherit}
+.dtab:hover{background:rgba(0,0,0,0.04)}
+.dtab.on{background:rgba(0,0,0,0.06);color:#1a1a1a;border-color:rgba(0,0,0,0.3);font-weight:500}
+.dpto-section{margin-bottom:28px}
+.dpto-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:10px;border-bottom:0.5px solid rgba(0,0,0,0.1)}
+.dpto-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;flex-shrink:0}
+.dpto-name{font-size:15px;font-weight:500}
+.dpto-meta{font-size:12px;color:#666;margin-top:2px}
+.person-card{background:white;border:0.5px solid rgba(0,0,0,0.1);border-radius:12px;padding:16px 18px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;gap:14px;transition:border-color .12s}
+.person-card:hover{border-color:rgba(0,0,0,0.25)}
+.person-card.baja-card{background:#f8f8f8;opacity:.7}
+.avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;flex-shrink:0}
+.av-teal{background:#E1F5EE;color:#085041}.av-purple{background:#EEEDFE;color:#3C3489}
+.av-coral{background:#FAECE7;color:#712B13}.av-blue{background:#E6F1FB;color:#0C447C}
+.av-amber{background:#FAEEDA;color:#633806}.av-pink{background:#FBEAF0;color:#72243E}
+.pinfo{flex:1;min-width:0}
+.pname{font-size:14px;font-weight:500}
+.pmeta{font-size:12px;color:#888;margin-top:2px}
+.pright{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.dots{display:flex;gap:4px}
+.dot{width:10px;height:10px;border-radius:50%}
+.d-green{background:#639922}.d-amber{background:#BA7517}.d-red{background:#E24B4A}.d-gray{background:#ccc}
+.etapa-pill{font-size:11px;color:#888;background:#f0efe8;padding:3px 10px;border-radius:20px;white-space:nowrap}
+.chevron{color:#ccc;font-size:18px;line-height:1}
+.alert-strip{background:#FCEBEB;border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+.alert-title{font-size:13px;font-weight:500;color:#791F1F}
+.alert-sub{font-size:11px;color:#A32D2D;margin-top:2px}
+.card{background:white;border:0.5px solid rgba(0,0,0,0.1);border-radius:12px;padding:16px 18px;margin-bottom:12px}
+.card-hdr{font-size:13px;font-weight:500;margin-bottom:14px;padding-bottom:10px;border-bottom:0.5px solid rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:space-between}
+.prog-wrap{margin-bottom:16px}
+.prog-track{display:flex;gap:5px;margin-bottom:5px}
+.prog-step{flex:1;height:5px;border-radius:3px}
+.ps-done{background:#639922}.ps-cur{background:#BA7517}.ps-pend{background:#e0dfd8}
+.prog-labs{display:flex;justify-content:space-between;font-size:11px;color:#888}
+.dim-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:14px}
+.mcard{background:#f5f4f0;border-radius:8px;padding:12px 14px}
+.mlabel{font-size:11px;color:#888;margin-bottom:7px;font-weight:500;text-transform:uppercase;letter-spacing:.04em}
+.mval{font-size:22px;font-weight:500}.msmall{font-size:11px;color:#888;margin-top:2px}
+.gap-tag{font-size:11px;padding:3px 8px;border-radius:10px;margin-top:7px;display:inline-block;font-weight:500}
+.g-ok{background:#EAF3DE;color:#27500A}.g-over{background:#FAEEDA;color:#633806}
+.g-under{background:#FAEEDA;color:#633806}.g-alert{background:#FCEBEB;color:#791F1F}
+.rrow{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid rgba(0,0,0,0.07)}
+.rrow:last-child{border-bottom:none}
+.rlabel{font-size:13px;color:#666}
+.qbox{background:#f5f4f0;border-radius:8px;padding:10px 13px;font-size:13px;color:#555;line-height:1.6;margin-top:8px;font-style:italic}
+.infobox{background:#f5f4f0;border-radius:8px;padding:12px 14px;font-size:13px;color:#555;line-height:1.6;width:100%}
+.infobox-label{font-size:10px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.aitem{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:0.5px solid rgba(0,0,0,0.07)}
+.aitem:last-child{border-bottom:none}
+.anum{width:20px;height:20px;border-radius:50%;background:#f0efe8;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#888;flex-shrink:0;margin-top:2px}
+.atxt{font-size:13px;line-height:1.5}.afreq{font-size:11px;color:#aaa;margin-top:2px}
+.rs{display:inline-flex;align-items:center;font-size:12px;padding:3px 10px;border-radius:20px;font-weight:500}
+.rs-pendiente{background:#F1EFE8;color:#888}
+.rs-celebrada{background:#EAF3DE;color:#27500A}
+.rs-cancelada{background:#FCEBEB;color:#791F1F}
+.enc-q{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:0.5px solid rgba(0,0,0,0.06)}
+.enc-q:last-child{border-bottom:none}
+.enc-qlabel{font-size:13px;color:#444;flex:1;margin-right:12px;line-height:1.4}
+.enc-score-wrap{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.enc-bar-bg{width:50px;background:#e8e7e0;border-radius:3px;height:4px}
+.enc-bar-fill{height:4px;border-radius:3px}
+.enc-score{font-size:13px;font-weight:500;width:16px;text-align:center}
+.acc-item{border:0.5px solid rgba(0,0,0,0.1);border-radius:8px;margin-bottom:6px;overflow:hidden}
+.acc-hdr{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;cursor:pointer;background:white;user-select:none}
+.acc-hdr:hover{background:#fafaf8}
+.acc-hdr-left{font-size:13px;font-weight:500}
+.acc-body{display:none;padding:14px 16px;background:white;border-top:0.5px solid rgba(0,0,0,0.07)}
+.acc-body.open{display:block}
+.baja-banner{background:#F1EFE8;border:0.5px solid rgba(0,0,0,0.12);border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.baja-badge{font-size:12px;font-weight:500;padding:4px 12px;border-radius:20px;background:#e0dfd8;color:#5F5E5A}
+.subgroup-label{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px;padding:0 2px}
+.sl-alert{color:#A32D2D}.sl-follow{color:#888}.sl-baja{color:#aaa}
+.section-title{font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin:16px 0 8px;padding-bottom:6px;border-bottom:0.5px solid rgba(0,0,0,0.08)}
+.pot-alto{background:#EAF3DE;color:#27500A;font-size:12px;font-weight:500;padding:4px 12px;border-radius:20px;display:inline-block}
+.pot-medio{background:#FAEEDA;color:#633806;font-size:12px;font-weight:500;padding:4px 12px;border-radius:20px;display:inline-block}
+.pot-bajo{background:#F1EFE8;color:#555;font-size:12px;font-weight:500;padding:4px 12px;border-radius:20px;display:inline-block}
+.form-row{margin-bottom:14px}
+.form-label{font-size:12px;color:#666;margin-bottom:5px;display:block;font-weight:500}
+.form-input{width:100%;padding:8px 10px;border:0.5px solid rgba(0,0,0,0.2);border-radius:8px;font-size:13px;font-family:inherit;background:white;color:#1a1a1a}
+.form-input:focus{outline:none;border-color:rgba(0,0,0,0.4)}
+textarea.form-input{resize:vertical;min-height:72px;line-height:1.5}
+.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.form-section{font-size:11px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:.07em;margin:20px 0 12px;padding-bottom:6px;border-bottom:0.5px solid rgba(0,0,0,0.08)}
+.star-btn{width:30px;height:30px;border-radius:6px;border:0.5px solid rgba(0,0,0,0.18);background:none;font-size:13px;cursor:pointer;font-family:inherit;font-weight:500;color:#888}
+.star-btn:hover{background:rgba(0,0,0,0.04)}
+.star-btn.sel{background:#FAEEDA;border-color:#BA7517;color:#633806}
+.stars-row{display:flex;gap:5px}
+.form-tabs{display:flex;gap:0;margin-bottom:22px;border:0.5px solid rgba(0,0,0,0.15);border-radius:8px;overflow:hidden}
+.ftab{flex:1;padding:9px 6px;text-align:center;font-size:12px;cursor:pointer;background:none;border:none;font-family:inherit;color:#888;border-right:0.5px solid rgba(0,0,0,0.1)}
+.ftab:last-child{border-right:none}
+.ftab.on{background:#f0efe8;color:#1a1a1a;font-weight:500}
+.notify-bar{background:#EAF3DE;border-radius:8px;padding:10px 14px;font-size:13px;color:#27500A;margin-bottom:14px;display:none;font-weight:500}
+.filter-row{display:flex;gap:6px;margin-bottom:16px}
+.filter-btn{font-size:12px;padding:5px 12px;border-radius:20px;border:0.5px solid rgba(0,0,0,0.2);background:none;color:#666;cursor:pointer;font-family:inherit}
+.filter-btn.on{background:rgba(0,0,0,0.06);color:#1a1a1a;border-color:rgba(0,0,0,0.3);font-weight:500}
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:100}
+.modal{background:white;border-radius:12px;padding:24px;width:380px;max-width:90vw}
+.modal-title{font-size:15px;font-weight:500;margin-bottom:8px}
+.modal-sub{font-size:13px;color:#666;margin-bottom:20px;line-height:1.5}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end}
+.resp-banner{background:#E6F1FB;border-radius:8px;padding:10px 16px;font-size:13px;color:#0C447C;margin-bottom:16px;font-weight:500}
+.share-box{background:#f5f4f0;border-radius:8px;padding:10px 14px;font-size:12px;font-family:monospace;color:#444;word-break:break-all;margin:12px 0}
+@media print{
+  body{background:white;padding:12px}
+  .no-print{display:none!important}
+  .screen{display:block!important}
+  #s-main,#s-detail,#s-form,#s-resp{display:none!important}
+  #s-print{display:block!important}
+}
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div id="loading-screen" class="loading-screen">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Cargando datos...</div>
+</div>
+
+<!-- Saving indicator -->
+<div id="saving-bar" class="saving-bar">
+  <div class="saving-dot"></div>
+  <span id="saving-text">Guardando...</span>
+</div>
+
+<div class="app">
+
+<!-- MAIN -->
+<div id="s-main" class="screen active">
+  <div class="topbar no-print">
+    <div>
+      <div class="page-title">Dpto. Personas · Dashboard Onboarding</div>
+      <div class="page-sub" id="main-sub"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="newPerson()">+ Nueva incorporación</button>
+      <button class="btn" onclick="manageDptos()">Departamentos</button>
+    </div>
+  </div>
+  <div class="summary-grid" id="summary-cards"></div>
+  <div id="alert-area"></div>
+  <div style="margin-bottom:10px;font-size:13px;font-weight:500;color:#555">Próximas acciones · próximas 3 semanas</div>
+  <div id="prox-grid"></div>
+  <div class="dpto-tabs no-print" id="dpto-tabs"></div>
+  <div class="filter-row no-print">
+    <button class="filter-btn on" id="fb-activos" onclick="setFilter('activos',this)">Activos</button>
+    <button class="filter-btn" id="fb-bajas" onclick="setFilter('bajas',this)">Bajas</button>
+    <button class="filter-btn" id="fb-todos" onclick="setFilter('todos',this)">Todos</button>
+  </div>
+  <div id="dpto-sections"></div>
+</div>
+
+<!-- DETAIL -->
+<div id="s-detail" class="screen">
+  <div class="topbar no-print">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="btn" onclick="go('s-main')">← Volver</button>
+      <div id="d-title" style="font-size:15px;font-weight:500"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-export" onclick="openPrintPerson()">Exportar PDF</button>
+      <button class="btn" onclick="editCurrentPerson()">Editar</button>
+      <button class="btn btn-danger" id="btn-baja" onclick="openBajaModal()">Dar de baja</button>
+      <button class="btn btn-danger" onclick="confirmDelete()">Eliminar</button>
+    </div>
+  </div>
+  <div id="d-content"></div>
+</div>
+
+<!-- FORM -->
+<div id="s-form" class="screen">
+  <div class="topbar no-print">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="btn" onclick="cancelForm()">← Cancelar</button>
+      <div class="page-title" id="form-title">Nueva incorporación</div>
+    </div>
+    <button class="btn btn-primary" onclick="saveForm()">Guardar</button>
+  </div>
+  <div id="notify-ok" class="notify-bar">Guardado correctamente.</div>
+  <div class="form-tabs no-print">
+    <button class="ftab on" id="ft0" onclick="showFTab(0)">Datos básicos</button>
+    <button class="ftab" id="ft1" onclick="showFTab(1)">Encuesta empleado</button>
+    <button class="ftab" id="ft2" onclick="showFTab(2)">Encuesta responsable</button>
+    <button class="ftab" id="ft3" onclick="showFTab(3)">Reunión 2 meses</button>
+    <button class="ftab" id="ft4" onclick="showFTab(4)">Reunión 6 meses</button>
+  </div>
+  <div id="ft-0"></div>
+  <div id="ft-1" style="display:none"></div>
+  <div id="ft-2" style="display:none"></div>
+  <div id="ft-3" style="display:none"></div>
+  <div id="ft-4" style="display:none"></div>
+</div>
+
+<!-- RESP VIEW -->
+<div id="s-resp" class="screen">
+  <div class="topbar no-print">
+    <div>
+      <div class="page-title" id="resp-title"></div>
+      <div class="page-sub" id="resp-sub"></div>
+    </div>
+  </div>
+  <div class="resp-banner">Vista de solo lectura · Departamento compartido por RRHH</div>
+  <div id="resp-content"></div>
+</div>
+
+<!-- PRINT -->
+<div id="s-print" class="screen">
+  <div class="no-print topbar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="btn" id="print-back-btn">← Volver</button>
+      <div class="page-title" id="print-title"></div>
+    </div>
+    <button class="btn btn-export" onclick="window.print()">Imprimir / Guardar PDF</button>
+  </div>
+  <div id="print-content"></div>
+</div>
+
+<!-- Modales -->
+<div id="modal-baja" style="display:none">
+  <div class="modal-overlay" onclick="closeModal('modal-baja')">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-title">Dar de baja</div>
+      <div class="modal-sub">La persona quedará archivada y no aparecerá en la vista de activos.</div>
+      <div class="form-row">
+        <label class="form-label">Motivo de la baja</label>
+        <select class="form-input" id="baja-tipo">
+          <option value="Baja Voluntaria">Baja Voluntaria</option>
+          <option value="NSPP">NSPP (No supera Periodo de Prueba)</option>
+          <option value="Despido">Despido</option>
+        </select>
+      </div>
+      <div class="modal-btns">
+        <button class="btn" onclick="closeModal('modal-baja')">Cancelar</button>
+        <button class="btn btn-danger" onclick="confirmBaja()">Confirmar baja</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="modal-delete" style="display:none">
+  <div class="modal-overlay" onclick="closeModal('modal-delete')">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-title">Eliminar persona</div>
+      <div class="modal-sub" id="modal-delete-sub">¿Estás seguro/a? Esta acción no se puede deshacer.</div>
+      <div class="modal-btns">
+        <button class="btn" onclick="closeModal('modal-delete')">Cancelar</button>
+        <button class="btn btn-danger" onclick="doDelete()">Eliminar definitivamente</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="modal-share" style="display:none">
+  <div class="modal-overlay" onclick="closeModal('modal-share')">
+    <div class="modal" onclick="event.stopPropagation()" style="width:460px">
+      <div class="modal-title" id="share-modal-title">Compartir vista del departamento</div>
+      <div class="modal-sub">Copia este enlace y compártelo con el responsable. Verá solo su departamento, siempre actualizado.</div>
+      <div class="share-box" id="share-url"></div>
+      <div class="modal-btns">
+        <button class="btn" onclick="closeModal('modal-share')">Cerrar</button>
+        <button class="btn btn-primary" onclick="copyShareUrl()">Copiar enlace</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="modal-filter" style="display:none">
+  <div class="modal-overlay" onclick="closeModal('modal-filter')">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-title" id="mf-title"></div>
+      <div id="mf-content" style="max-height:340px;overflow-y:auto;margin:12px 0"></div>
+      <div class="modal-btns"><button class="btn" onclick="closeModal('modal-filter')">Cerrar</button></div>
+    </div>
+  </div>
+</div>
+
+</div>
+<script>
+// ============================================
+// SUPABASE CONFIG
+// ============================================
+const SUPABASE_URL='https://shzozrwqkovbcfitmjnf.supabase.co';
+const SUPABASE_KEY='sb_publishable_PsKfOuP6lNheDzuu8thWcA_S48ivZjW';
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ============================================
+// STATE
+// ============================================
+let db={dptos:[],people:[]};
+let currentId=null,editingId=null,currentFilter='activos',currentDpto='todos';
+
+const DL=['Adaptación al puesto','Integración al equipo','Nivel de desempeño'];
+const EL=['Sin datos','45 días','Reunión 2M','6 meses'];
+const AVC=['av-teal','av-purple','av-coral','av-blue','av-amber','av-pink'];
+const DIC=['background:#EEEDFE;color:#3C3489','background:#E1F5EE;color:#085041','background:#FAECE7;color:#712B13','background:#E6F1FB;color:#0C447C','background:#FAEEDA;color:#633806','background:#FBEAF0;color:#72243E'];
+
+const EQS=[
+  {d:0,t:'Tengo claro qué se espera de mí en mi puesto'},
+  {d:0,t:'Me siento preparado/a para desempeñar mis funciones'},
+  {d:0,t:'Me siento cómodo/a realizando mis primeras tareas'},
+  {d:0,t:'Estoy empezando a entender cómo funciona mi trabajo'},
+  {d:0,t:'He recibido el apoyo necesario para desempeñar mi trabajo'},
+  {d:0,t:'Mi responsable me da orientación clara'},
+  {d:0,t:'Sé a quién acudir cuando tengo dudas'},
+  {d:1,t:'Me siento integrado/a en mi equipo'},
+  {d:1,t:'Me siento parte de la empresa'},
+  {d:2,t:'Valoro positivamente mi experiencia en estas primeras semanas'},
+];
+const RQS=[
+  {d:0,t:'Nivel de adaptación al puesto (aprendizaje, comprensión del rol)'},
+  {d:0,t:'Nivel de autonomía en el desempeño de sus tareas'},
+  {d:2,t:'Nivel de desempeño en el puesto (calidad, cumplimiento, eficiencia)'},
+  {d:2,t:'Cumplimiento de procesos y forma de trabajo'},
+  {d:1,t:'Nivel de integración en el equipo (relación, colaboración)'},
+  {d:1,t:'Actitud profesional (compromiso, proactividad, predisposición)'},
+  {d:2,t:'Valoración global de la incorporación'},
+];
+
+// ============================================
+// SUPABASE — LOAD & SAVE
+// ============================================
+async function loadFromSupabase(){
+  showLoading(true);
+  try {
+    const [dptosRes, peopleRes] = await Promise.all([
+      sb.from('dptos').select('*').order('created_at'),
+      sb.from('people').select('*').order('created_at')
+    ]);
+    if(dptosRes.error) throw dptosRes.error;
+    if(peopleRes.error) throw peopleRes.error;
+
+    db.dptos = dptosRes.data.map(d=>({id:d.id,name:d.name}));
+    db.people = peopleRes.data.map(rowToLocal);
+  } catch(e){
+    console.error('Error cargando datos:',e);
+    alert('Error conectando con la base de datos. Verifica tu conexión.');
+  }
+  showLoading(false);
+}
+
+function rowToLocal(r){
+  return {
+    id: r.id,
+    dptoId: r.dpto_id,
+    name: r.name,
+    role: r.role||'',
+    fechaInc: r.fecha_inc||'',
+    av: r.av||'',
+    avc: r.avc||'av-teal',
+    etapa: r.etapa||0,
+    baja: r.baja||null,
+    e45:{
+      s: r.e45_s||[],
+      necApoyo: r.e45_nec_apoyo||'',
+      ayudo: r.e45_ayudo||'',
+      mejorar: r.e45_mejorar||''
+    },
+    r45:{
+      s: r.r45_s||[],
+      nivelRiesgo: r.r45_nivel_riesgo||'',
+      potencial: r.r45_potencial||'',
+      volveria: r.r45_volveria||'',
+      mejora: r.r45_mejora||''
+    },
+    r2m:{
+      estado: r.r2m_estado||'pendiente',
+      fecha: r.r2m_fecha||'',
+      notas: r.r2m_notas||'',
+      vozEmpleado: r.r2m_voz_empleado||''
+    },
+    r6:{
+      estado: r.r6_estado||'pendiente',
+      fecha: r.r6_fecha||'',
+      notas: r.r6_notas||''
+    },
+    areas: r.areas||[],
+    acc: r.acc||[]
+  };
+}
+
+function localToRow(p){
+  return {
+    id: p.id,
+    dpto_id: p.dptoId,
+    name: p.name,
+    role: p.role,
+    fecha_inc: p.fechaInc||null,
+    av: p.av,
+    avc: p.avc,
+    etapa: p.etapa,
+    baja: p.baja||null,
+    e45_s: p.e45.s,
+    e45_nec_apoyo: p.e45.necApoyo,
+    e45_ayudo: p.e45.ayudo,
+    e45_mejorar: p.e45.mejorar,
+    r45_s: p.r45.s,
+    r45_nivel_riesgo: p.r45.nivelRiesgo,
+    r45_potencial: p.r45.potencial,
+    r45_volveria: p.r45.volveria,
+    r45_mejora: p.r45.mejora,
+    r2m_estado: p.r2m.estado,
+    r2m_fecha: p.r2m.fecha||null,
+    r2m_notas: p.r2m.notas,
+    r2m_voz_empleado: p.r2m.vozEmpleado,
+    r6_estado: p.r6.estado,
+    r6_fecha: p.r6.fecha||null,
+    r6_notas: p.r6.notas,
+    areas: p.areas,
+    acc: p.acc,
+    updated_at: new Date().toISOString()
+  };
+}
+
+async function savePerson(p){
+  showSaving(true);
+  const row=localToRow(p);
+  const {error}=await sb.from('people').upsert(row);
+  if(error){console.error('Error guardando:',error);alert('Error al guardar. Inténtalo de nuevo.');}
+  showSaving(false,'¡Guardado!');
+}
+
+async function deletePerson(id){
+  showSaving(true);
+  await sb.from('people').delete().eq('id',id);
+  showSaving(false);
+}
+
+async function saveDptos(){
+  showSaving(true);
+  // upsert all dptos
+  const rows=db.dptos.map(d=>({id:d.id,name:d.name}));
+  const {error}=await sb.from('dptos').upsert(rows);
+  if(error) console.error('Error guardando dptos:',error);
+  showSaving(false,'¡Guardado!');
+}
+
+// UI helpers
+function showLoading(v){document.getElementById('loading-screen').style.display=v?'flex':'none';}
+let savingTimer=null;
+function showSaving(v,msg='Guardando...'){
+  const bar=document.getElementById('saving-bar');
+  document.getElementById('saving-text').textContent=msg;
+  bar.classList.toggle('show',v);
+  if(!v){
+    clearTimeout(savingTimer);
+    savingTimer=setTimeout(()=>bar.classList.remove('show'),2000);
+  }
+}
+
+// ============================================
+// HELPERS
+// ============================================
+function calcRisk(p){
+  const nr=p.r45?p.r45.nivelRiesgo:'';
+  const vo=p.r45?p.r45.volveria:'';
+  if(nr==='Alto'||vo==='no') return 'Alto';
+  if(nr==='Medio') return 'Medio';
+  if(nr==='Bajo'||vo==='si') return 'Bajo';
+  return '—';
+}
+function rb(r){return r==='Alto'?'b-red':r==='Medio'?'b-amber':r==='Bajo'?'b-green':'b-gray';}
+function rl(r){return r==='Alto'?'Riesgo alto':r==='Medio'?'Riesgo medio':r==='Bajo'?'Sin alerta':'Sin datos';}
+function isOBCerrado(p){return !!p.baja||(p.r6&&p.r6.estado==='celebrada');}
+function potencialCls(pot){if(pot==='Alto')return 'pot-alto';if(pot==='Medio')return 'pot-medio';if(pot==='Bajo')return 'pot-bajo';return '';}
+function gapInfo(g){
+  if(Math.abs(g)<=0.5)return{cls:'g-ok',lbl:'Alineado'};
+  if(g>1.5)return{cls:'g-alert',lbl:'Sobreestima fuerte'};
+  if(g<-1.5)return{cls:'g-alert',lbl:'Subestima fuerte'};
+  return g>0?{cls:'g-over',lbl:'Sobreestima'}:{cls:'g-under',lbl:'Se subestima'};
+}
+function dimAvg(scores,qs){
+  const dims=[[],[],[]];
+  qs.forEach((q,i)=>{if(scores[i]&&scores[i]>0)dims[q.d].push(scores[i]);});
+  return dims.map(d=>d.length?parseFloat((d.reduce((a,b)=>a+b,0)/d.length).toFixed(2)):null);
+}
+function scoreCol(n){return n>=4?'#639922':n>=3?'#BA7517':'#E24B4A';}
+function fmtDate(d){if(!d)return'';try{return new Date(d+'T12:00:00').toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return d;}}
+function calcDias(f){if(!f)return 0;const d=Math.floor((new Date()-new Date(f+'T12:00:00'))/(864e5));return d>0?d:0;}
+function rsC(s){return s==='celebrada'?'rs-celebrada':s==='cancelada'?'rs-cancelada':'rs-pendiente';}
+function rsL(s){return s==='celebrada'?'Celebrada':s==='cancelada'?'Cancelada':'Pendiente';}
+function gv(id,fb=''){const el=document.getElementById(id);return el?el.value.trim():fb;}
+function getStar(g){const b=[...document.querySelectorAll(`#${g} .star-btn`)];const i=b.findIndex(x=>x.classList.contains('sel'));return i>=0?i+1:0;}
+function getStarArr(pfx,n){return Array.from({length:n},(_,i)=>getStar(`${pfx}-${i}`));}
+function setStar(g,v){document.querySelectorAll(`#${g} .star-btn`).forEach((b,i)=>b.classList.toggle('sel',i+1===v));}
+function clearStar(g){document.querySelectorAll(`#${g} .star-btn`).forEach(b=>b.classList.remove('sel'));}
+function v2(x){return x||'';}
+
+function personDots(p){
+  const he=p.e45&&p.e45.s&&p.e45.s.some(x=>x>0);
+  const hr=p.r45&&p.r45.s&&p.r45.s.some(x=>x>0);
+  if(!he||!hr) return DL.map(()=>`<div class="dot d-gray"></div>`).join('');
+  const ed=dimAvg(p.e45.s,EQS),rd=dimAvg(p.r45.s,RQS);
+  return DL.map((_,i)=>{
+    const e=ed[i],r=rd[i];
+    if(!e||!r) return`<div class="dot d-gray"></div>`;
+    const g=e-r,cls=Math.abs(g)<=0.5?'d-green':Math.abs(g)<=1.5?'d-amber':'d-red';
+    return`<div class="dot ${cls}" title="${DL[i]}: GAP ${g>0?'+':''}${g.toFixed(1)}"></div>`;
+  }).join('');
+}
+
+// ============================================
+// NAVEGACIÓN
+// ============================================
+function go(sid){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(sid).classList.add('active');
+  if(sid==='s-main') renderMain();
+}
+
+// ============================================
+// PRÓXIMAS ACCIONES
+// ============================================
+function buildProxGrid(people){
+  const WINDOW=21;
+  const activos=people.filter(p=>!p.baja&&!isOBCerrado(p));
+  function daysUntil(t,d){return t-d;}
+
+  const enc45Items=activos.map(p=>{
+    const dias=calcDias(p.fechaInc);
+    const dpto=db.dptos.find(d=>d.id===p.dptoId);
+    const he=p.e45&&p.e45.s&&p.e45.s.some(x=>x>0);
+    const hr=p.r45&&p.r45.s&&p.r45.s.some(x=>x>0);
+    if(he&&hr) return null;
+    if(dias<24) return null;
+    const remaining=daysUntil(45,dias);
+    if(remaining>WINDOW) return null;
+    return{id:p.id,name:p.name,dpto:dpto?dpto.name:'',dias,remaining};
+  }).filter(Boolean).sort((a,b)=>a.remaining-b.remaining);
+
+  const r2mItems=activos.map(p=>{
+    const dias=calcDias(p.fechaInc);
+    const dpto=db.dptos.find(d=>d.id===p.dptoId);
+    if(p.r2m&&p.r2m.estado==='celebrada') return null;
+    if(dias<38) return null;
+    const remaining=daysUntil(60,dias);
+    if(remaining>WINDOW) return null;
+    return{id:p.id,name:p.name,dpto:dpto?dpto.name:'',dias,remaining,
+      fecha:p.r2m&&p.r2m.fecha?fmtDate(p.r2m.fecha):null};
+  }).filter(Boolean).sort((a,b)=>a.remaining-b.remaining);
+
+  const r6mItems=activos.map(p=>{
+    const dias=calcDias(p.fechaInc);
+    const dpto=db.dptos.find(d=>d.id===p.dptoId);
+    if(p.r6&&p.r6.estado==='celebrada') return null;
+    if(dias<150) return null;
+    const remaining=daysUntil(180,dias);
+    if(remaining>WINDOW) return null;
+    return{id:p.id,name:p.name,dpto:dpto?dpto.name:'',dias,remaining,
+      fecha:p.r6&&p.r6.fecha?fmtDate(p.r6.fecha):null};
+  }).filter(Boolean).sort((a,b)=>a.remaining-b.remaining);
+
+  function us(r){
+    if(r<0) return{bg:'#FCEBEB',color:'#791F1F',label:`Vencida hace ${Math.abs(r)}d`};
+    if(r<=7) return{bg:'#FCEBEB',color:'#791F1F',label:`Vence en ${r}d`};
+    if(r<=14) return{bg:'#FAEEDA',color:'#633806',label:`Vence en ${r}d`};
+    return{bg:'#F1EFE8',color:'#555',label:`Vence en ${r}d`};
+  }
+
+  function col(title,sub,items){
+    const overdue=items.some(i=>i.remaining<0),soon=items.some(i=>i.remaining<=7);
+    const bt=overdue||soon?'border-top:3px solid #E24B4A':'border-top:3px solid #e0dfd8';
+    const rows=items.length?items.map(it=>{const s=us(it.remaining);
+      return`<div onclick="showDetail('${it.id}')" style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid rgba(0,0,0,0.07);cursor:pointer">
+        <div><div style="font-weight:500;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${it.name}</div>
+        <div style="font-size:11px;color:#888;margin-top:1px">${it.dpto} · ${it.dias}d${it.fecha?` · ${it.fecha}`:''}</div></div>
+        <div style="background:${s.bg};color:${s.color};font-size:11px;font-weight:500;padding:2px 8px;border-radius:10px;white-space:nowrap">${s.label}</div>
+      </div>`;}).join(''):`<div style="font-size:12px;color:#bbb;padding:12px 0;text-align:center">Sin vencimientos próximos</div>`;
+    const cb=overdue||soon?'#FCEBEB':items.length?'#EAF3DE':'#F1EFE8';
+    const cc=overdue||soon?'#791F1F':items.length?'#27500A':'#888';
+    return`<div style="background:white;border:0.5px solid rgba(0,0,0,0.1);border-radius:10px;padding:14px 16px;${bt}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+        <div style="font-size:13px;font-weight:600">${title}</div>
+        ${items.length?`<span style="background:${cb};color:${cc};font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px">${items.length}</span>`:''}
+      </div>
+      <div style="font-size:11px;color:#aaa;margin-bottom:10px;padding-bottom:8px;border-bottom:0.5px solid rgba(0,0,0,0.07)">${sub}</div>
+      ${rows}</div>`;
+  }
+  return`<div class="prox-3col">
+    ${col('Encuestas · 45 días','Ventana: días 24–45',enc45Items)}
+    ${col('Reunión · 2 meses','Ventana: días 45–60',r2mItems)}
+    ${col('Reunión · 6 meses','Ventana: días 159–180',r6mItems)}
+  </div>`;
+}
+
+// ============================================
+// MAIN
+// ============================================
+function renderMain(){
+  const todos=db.people;
+  const activos=todos.filter(p=>!p.baja&&!isOBCerrado(p));
+  const alto=activos.filter(p=>calcRisk(p)==='Alto').length;
+  const medio=activos.filter(p=>calcRisk(p)==='Medio').length;
+  const cerrados=todos.filter(p=>isOBCerrado(p)).length;
+
+  document.getElementById('main-sub').textContent=`${activos.length} incorporaciones activas · ${db.dptos.length} departamentos`;
+
+  document.getElementById('summary-cards').innerHTML=`
+    <div class="sum-card" onclick="openSummaryFilter('activos')" style="cursor:pointer">
+      <div class="sum-val">${activos.length}</div><div class="sum-lbl">OB activos</div>
+      <div class="sum-hint">Clic para ver lista</div></div>
+    <div class="sum-card c-red" onclick="openSummaryFilter('alto')" style="cursor:pointer">
+      <div class="sum-val">${alto}</div><div class="sum-lbl">Riesgo alto</div>
+      <div class="sum-hint">Clic para ver lista</div></div>
+    <div class="sum-card c-amber" onclick="openSummaryFilter('medio')" style="cursor:pointer">
+      <div class="sum-val">${medio}</div><div class="sum-lbl">Riesgo medio</div>
+      <div class="sum-hint">Clic para ver lista</div></div>
+    <div class="sum-card c-closed" onclick="openSummaryFilter('cerrados')" style="cursor:pointer">
+      <div class="sum-val">${cerrados}</div><div class="sum-lbl">OB cerrados</div>
+      <div class="sum-hint">Bajas + 6M completados</div></div>`;
+
+  const altosArr=activos.filter(p=>calcRisk(p)==='Alto');
+  document.getElementById('alert-area').innerHTML=altosArr.length?`
+    <div class="alert-strip" onclick="openSummaryFilter('alto')" style="margin-bottom:16px">
+      <div><div class="alert-title">${altosArr.length} persona${altosArr.length!==1?'s':''} con riesgo alto</div>
+      <div class="alert-sub">Haz clic para ver el listado completo</div></div>
+      <span class="badge b-red">Ver listado →</span></div>`:'';
+
+  document.getElementById('prox-grid').innerHTML=buildProxGrid(db.people);
+
+  document.getElementById('dpto-tabs').innerHTML=
+    `<button class="dtab on" onclick="filterDpto('todos',this)">Todos</button>`+
+    db.dptos.map(d=>{
+      const n=db.people.filter(p=>p.dptoId===d.id&&!p.baja&&!isOBCerrado(p)).length;
+      const a=db.people.filter(p=>p.dptoId===d.id&&!p.baja&&!isOBCerrado(p)&&calcRisk(p)==='Alto').length;
+      return`<button class="dtab" onclick="filterDpto('${d.id}',this)">${d.name} <span style="opacity:.65">(${n}${a?' · ⚠'+a:''})</span></button>`;
+    }).join('');
+  renderDptos(currentDpto);
+}
+
+function openSummaryFilter(type){
+  let list=[],title='';
+  if(type==='cerrados'){list=db.people.filter(p=>isOBCerrado(p));title='OB cerrados';}
+  else{
+    list=db.people.filter(p=>!p.baja&&!isOBCerrado(p));
+    if(type==='alto'){list=list.filter(p=>calcRisk(p)==='Alto');title='Riesgo alto';}
+    else if(type==='medio'){list=list.filter(p=>calcRisk(p)==='Medio');title='Riesgo medio';}
+    else title='OB activos';
+  }
+  document.getElementById('mf-title').textContent=title+' — '+list.length+' personas';
+  document.getElementById('mf-content').innerHTML=list.length
+    ?list.map(p=>{
+      const dpto=db.dptos.find(d=>d.id===p.dptoId);
+      const motivo=p.baja?`<span class="badge b-baja">${p.baja}</span>`:
+        (p.r6&&p.r6.estado==='celebrada'?`<span class="badge b-teal">6M completado</span>`:`<span class="badge ${rb(calcRisk(p))}">${rl(calcRisk(p))}</span>`);
+      return`<div onclick="closeModal('modal-filter');showDetail('${p.id}')" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid rgba(0,0,0,0.07);cursor:pointer">
+        <div class="avatar ${p.avc}" style="width:32px;height:32px;font-size:11px">${p.av}</div>
+        <div style="flex:1"><div style="font-weight:500;font-size:13px">${p.name}</div><div style="font-size:12px;color:#888">${p.role}${dpto?' · '+dpto.name:''}</div></div>
+        ${motivo}</div>`;
+    }).join('')
+    :`<div style="font-size:13px;color:#aaa;padding:10px 0">Sin personas en esta categoría.</div>`;
+  document.getElementById('modal-filter').style.display='block';
+}
+
+function setFilter(f,btn){
+  currentFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');renderDptos(currentDpto);
+}
+function filterDpto(id,btn){
+  document.querySelectorAll('.dtab').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');currentDpto=id;renderDptos(id);
+}
+
+function renderDptos(filter){
+  const dptos=filter==='todos'?db.dptos:db.dptos.filter(d=>d.id===filter);
+  document.getElementById('dpto-sections').innerHTML=dptos.map((d,di)=>{
+    let ppl=db.people.filter(p=>p.dptoId===d.id);
+    if(currentFilter==='activos') ppl=ppl.filter(p=>!p.baja&&!isOBCerrado(p));
+    else if(currentFilter==='bajas') ppl=ppl.filter(p=>!!p.baja);
+    const activosCount=db.people.filter(p=>p.dptoId===d.id&&!p.baja&&!isOBCerrado(p)).length;
+    const alertsCount=db.people.filter(p=>p.dptoId===d.id&&!p.baja&&!isOBCerrado(p)&&calcRisk(p)==='Alto').length;
+    const urgentes=ppl.filter(p=>!p.baja&&calcRisk(p)==='Alto'&&!isOBCerrado(p));
+    const seguimiento=ppl.filter(p=>!p.baja&&calcRisk(p)!=='Alto'&&!isOBCerrado(p));
+    const cerrados=ppl.filter(p=>isOBCerrado(p)&&!p.baja);
+    const bajas=ppl.filter(p=>!!p.baja);
+    let cards='';
+    if(urgentes.length){cards+=`<div class="subgroup-label sl-alert">Requieren atención</div>`;cards+=urgentes.map(p=>personCard(p)).join('');}
+    if(seguimiento.length){cards+=`<div class="subgroup-label sl-follow" style="margin-top:${urgentes.length?'12':'0'}px">En seguimiento</div>`;cards+=seguimiento.map(p=>personCard(p)).join('');}
+    if(cerrados.length&&currentFilter!=='bajas'){cards+=`<div class="subgroup-label" style="color:#3C4FA8;margin-top:12px">OB completados</div>`;cards+=cerrados.map(p=>personCard(p)).join('');}
+    if(bajas.length&&currentFilter!=='activos'){cards+=`<div class="subgroup-label sl-baja" style="margin-top:12px">Bajas</div>`;cards+=bajas.map(p=>personCard(p)).join('');}
+    if(!ppl.length) cards=`<div style="font-size:13px;color:#aaa;padding:10px 0">Sin personas en este departamento.</div>`;
+    return`<div class="dpto-section">
+      <div class="dpto-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="dpto-icon" style="${DIC[di%DIC.length]}">${d.name.slice(0,2).toUpperCase()}</div>
+          <div><div class="dpto-name">${d.name}</div><div class="dpto-meta">${activosCount} activo${activosCount!==1?'s':''}${alertsCount?` · ${alertsCount} alerta`:''}</div></div>
+        </div>
+        <div class="btn-row no-print">
+          <button class="btn btn-export" onclick="openPrintDpto('${d.id}')">Exportar PDF</button>
+          <button class="btn" onclick="openShareModal('${d.id}')">Compartir enlace</button>
+          <button class="btn" onclick="newPersonInDpto('${d.id}')">+ Añadir</button>
+        </div>
+      </div>${cards}</div>`;
+  }).join('');
+}
+
+function personCard(p){
+  const dias=calcDias(p.fechaInc);
+  const risk=p.baja?null:calcRisk(p);
+  const isBaja=!!p.baja,isCerrado=!isBaja&&isOBCerrado(p);
+  return`<div class="person-card ${isBaja||isCerrado?'baja-card':''}" onclick="showDetail('${p.id}')">
+    <div class="avatar ${p.avc}">${p.av}</div>
+    <div class="pinfo"><div class="pname">${p.name}</div><div class="pmeta">${p.role} · ${fmtDate(p.fechaInc)} · ${dias} días</div></div>
+    <div class="pright">
+      ${isBaja?`<span class="badge b-baja">${p.baja}</span>`:
+        isCerrado?`<span class="badge b-blue">6M completado</span>`:
+        `<span class="etapa-pill">${EL[p.etapa]}</span>
+         <div class="dots">${personDots(p)}</div>
+         <span class="badge ${rb(risk)}">${rl(risk)}</span>`}
+      <span class="chevron">›</span>
+    </div></div>`;
+}
+
+// ============================================
+// DETAIL
+// ============================================
+function showDetail(id){
+  currentId=id;
+  const p=db.people.find(x=>x.id===id);
+  document.getElementById('d-title').textContent=p.name+' · '+p.role;
+  document.getElementById('btn-baja').style.display=p.baja?'none':'';
+  document.getElementById('d-content').innerHTML=buildDetail(p);
+  go('s-detail');
+}
+
+function buildDetail(p){
+  const dpto=db.dptos.find(d=>d.id===p.dptoId);
+  const dias=calcDias(p.fechaInc),risk=calcRisk(p);
+  const steps=['Día 1','45 días','Reunión 2M','6 meses'];
+  const prog=`<div class="prog-wrap"><div class="prog-track">${steps.map((_,i)=>`<div class="prog-step ${i<p.etapa?'ps-done':i===p.etapa?'ps-cur':'ps-pend'}"></div>`).join('')}</div><div class="prog-labs">${steps.map(s=>`<span>${s}</span>`).join('')}</div></div>`;
+  const he45=p.e45&&p.e45.s&&p.e45.s.some(x=>x>0),hr45=p.r45&&p.r45.s&&p.r45.s.some(x=>x>0);
+  let gapCard='';
+  if(he45&&hr45){
+    const ed=dimAvg(p.e45.s,EQS),rd=dimAvg(p.r45.s,RQS);
+    gapCard=`<div class="card"><div class="card-hdr"><span>GAP encuestas · 45 días</span><span style="font-size:12px;color:#aaa">empleado vs. responsable</span></div>
+      <div class="dim-grid">${DL.map((lbl,i)=>{
+        const e=ed[i],r=rd[i];
+        if(!e||!r)return`<div class="mcard"><div class="mlabel">${lbl}</div><div style="font-size:12px;color:#aaa">Sin datos</div></div>`;
+        const gap=parseFloat((e-r).toFixed(2)),gc=gapInfo(gap);
+        return`<div class="mcard"><div class="mlabel">${lbl}</div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-end">
+            <div><div class="mval">${e.toFixed(1)}</div><div class="msmall">Empleado</div></div>
+            <div style="text-align:right"><div style="font-size:19px;font-weight:500">${r.toFixed(1)}</div><div class="msmall">Responsable</div></div>
+          </div><div class="gap-tag ${gc.cls}">GAP ${gap>0?'+':''}${gap.toFixed(1)} · ${gc.lbl}</div></div>`;
+      }).join('')}</div></div>`;
+  }
+  const rbadge=`<span class="badge ${rb(risk)}">${risk}</span>`;
+  const vbadge=p.r45.volveria==='si'?`<span class="badge b-green">Sí</span>`:p.r45.volveria==='no'?`<span class="badge b-red">No</span>`:`<span class="badge b-gray">—</span>`;
+  const potbadge=p.r45.potencial?`<span class="${potencialCls(p.r45.potencial)}">${p.r45.potencial}</span>`:`<span class="badge b-gray">—</span>`;
+  const arH=p.areas.length?p.areas.map(a=>`<div style="font-size:13px;padding:7px 0;border-bottom:0.5px solid rgba(0,0,0,0.07)">· ${a}</div>`).join(''):`<div style="font-size:13px;color:#aaa;padding:7px 0">Sin áreas definidas.</div>`;
+  const acH=p.acc.length?p.acc.map((a,i)=>`<div class="aitem"><div class="anum">${i+1}</div><div><div class="atxt">${a.t}</div><div class="afreq">${a.f}</div></div></div>`).join(''):`<div style="font-size:13px;color:#aaa;padding:7px 0">Sin acciones.</div>`;
+  return`${p.baja?`<div class="baja-banner"><span class="baja-badge">${p.baja}</span><span style="font-size:13px;color:#666;margin-left:8px">Esta persona está dada de baja.</span></div>`:''}
+  ${prog}
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+    ${dpto?`<span class="badge b-purple">${dpto.name}</span>`:''}
+    <span style="font-size:12px;color:#888">Incorporación: ${fmtDate(p.fechaInc)} · ${dias} días</span>
+  </div>
+  ${gapCard}
+  <div class="card"><div class="card-hdr"><span>Encuestas y reuniones</span></div>
+    ${buildEncAcc('Encuesta empleado · 45 días',p.e45.s,EQS,{necApoyo:p.e45.necApoyo,ayudo:p.e45.ayudo,mejorar:p.e45.mejorar},true,he45)}
+    ${buildEncAcc('Encuesta responsable · 45 días',p.r45.s,RQS,{mejora:p.r45.mejora,potencial:p.r45.potencial},false,hr45)}
+    ${buildReunionAcc('Reunión 2 meses',p.r2m,true)}
+    ${buildReunionAcc('Reunión 6 meses',p.r6,false)}
+  </div>
+  <div class="card"><div class="card-hdr"><span>Valoración del responsable</span></div>
+    <div class="rrow"><span class="rlabel">Nivel de riesgo</span>${rbadge}</div>
+    <div class="rrow"><span class="rlabel">Potencial de desarrollo</span>${potbadge}</div>
+    <div class="rrow"><span class="rlabel">¿Volvería a contratarle?</span>${vbadge}</div>
+    ${p.r45.mejora?`<div class="qbox">"${p.r45.mejora}"</div>`:''}
+  </div>
+  <div class="card"><div class="card-hdr"><span>Áreas de mejora</span></div>${arH}</div>
+  <div class="card"><div class="card-hdr"><span>Acciones recomendadas</span></div>${acH}</div>`;
+}
+
+function buildEncAcc(title,scores,qs,extra,isEmp,hasData){
+  const uid='a'+Math.random().toString(36).slice(2,6);
+  const sb2=hasData?`<span class="badge b-teal">Completada</span>`:`<span class="badge b-gray">Pendiente</span>`;
+  let body=hasData?qs.map((q,i)=>{
+    const sc=scores[i]||0,col=sc>0?scoreCol(sc):'#ccc';
+    return`<div class="enc-q"><span class="enc-qlabel">${q.t}</span>
+      <div class="enc-score-wrap"><div class="enc-bar-bg"><div class="enc-bar-fill" style="width:${sc*20}%;background:${col}"></div></div>
+      <span class="enc-score" style="color:${col}">${sc||'—'}</span></div></div>`;
+  }).join(''):`<div style="font-size:13px;color:#aaa">Formulario no completado aún.</div>`;
+  if(hasData&&isEmp){
+    if(extra.necApoyo)body+=`<div class="qbox" style="margin-top:10px"><b style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.04em">Necesita apoyo en: </b>${extra.necApoyo}</div>`;
+    if(extra.ayudo)body+=`<div class="qbox" style="margin-top:6px"><b style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.04em">Lo que más ayudó: </b>${extra.ayudo}</div>`;
+    if(extra.mejorar)body+=`<div class="qbox" style="margin-top:6px"><b style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.04em">Mejoraría: </b>${extra.mejorar}</div>`;
+  } else if(hasData&&!isEmp&&extra.mejora){
+    body+=`<div class="qbox" style="margin-top:10px"><b style="font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.04em">Observaciones: </b>${extra.mejora}</div>`;
+  }
+  return`<div class="acc-item">
+    <div class="acc-hdr" onclick="toggleAcc('${uid}')"><span class="acc-hdr-left">${title}</span>
+    <div style="display:flex;align-items:center;gap:8px">${sb2}<span id="chev-${uid}" style="color:#aaa;font-size:16px">›</span></div></div>
+    <div class="acc-body" id="${uid}">${body}</div></div>`;
+}
+
+function buildReunionAcc(title,r,is2m){
+  const uid='a'+Math.random().toString(36).slice(2,6);
+  const sb2=`<span class="rs ${rsC(r.estado)}">${rsL(r.estado)}</span>`;
+  let body=`<div class="rrow"><span class="rlabel">Estado</span>${sb2}</div>`;
+  if(r.fecha)body+=`<div class="rrow"><span class="rlabel">Fecha</span><span>${fmtDate(r.fecha)}</span></div>`;
+  if(r.notas)body+=`<div class="qbox" style="margin-top:10px">${r.notas}</div>`;
+  if(!r.notas&&r.estado==='pendiente')body+=`<div style="font-size:13px;color:#aaa;margin-top:8px">Sin notas.</div>`;
+  if(is2m&&r.vozEmpleado)body+=`<div class="qbox" style="margin-top:8px;border-left:3px solid #BA7517;padding-left:12px"><b style="font-size:11px;color:#BA7517;text-transform:uppercase;letter-spacing:.04em">Voz del empleado: </b>${r.vozEmpleado}</div>`;
+  return`<div class="acc-item">
+    <div class="acc-hdr" onclick="toggleAcc('${uid}')"><span class="acc-hdr-left">${title}</span>
+    <div style="display:flex;align-items:center;gap:8px">${sb2}<span id="chev-${uid}" style="color:#aaa;font-size:16px">›</span></div></div>
+    <div class="acc-body" id="${uid}">${body}</div></div>`;
+}
+
+function toggleAcc(id){
+  const b=document.getElementById(id),c=document.getElementById('chev-'+id);
+  const open=!b.classList.contains('open');
+  b.classList.toggle('open',open);
+  if(c)c.textContent=open?'⌄':'›';
+}
+
+// ============================================
+// BAJA / ELIMINAR
+// ============================================
+function openBajaModal(){document.getElementById('modal-baja').style.display='block';}
+async function confirmBaja(){
+  const tipo=document.getElementById('baja-tipo').value;
+  const idx=db.people.findIndex(x=>x.id===currentId);
+  db.people[idx].baja=tipo;
+  await savePerson(db.people[idx]);
+  closeModal('modal-baja');
+  document.getElementById('btn-baja').style.display='none';
+  document.getElementById('d-content').innerHTML=buildDetail(db.people[idx]);
+}
+function confirmDelete(){
+  const p=db.people.find(x=>x.id===currentId);
+  document.getElementById('modal-delete-sub').textContent=`¿Eliminar a "${p?p.name:'esta persona'}"? No se puede deshacer.`;
+  document.getElementById('modal-delete').style.display='block';
+}
+async function doDelete(){
+  await deletePerson(currentId);
+  db.people=db.people.filter(x=>x.id!==currentId);
+  closeModal('modal-delete');currentId=null;go('s-main');
+}
+function closeModal(id){document.getElementById(id).style.display='none';}
+
+// ============================================
+// SHARE LINK
+// ============================================
+function openShareModal(dptoId){
+  const d=db.dptos.find(x=>x.id===dptoId);
+  document.getElementById('share-modal-title').textContent='Compartir · '+d.name;
+  const url=window.location.href.split('?')[0]+'?dept='+dptoId;
+  document.getElementById('share-url').textContent=url;
+  document.getElementById('modal-share').style.display='block';
+}
+function copyShareUrl(){
+  const txt=document.getElementById('share-url').textContent;
+  navigator.clipboard.writeText(txt).then(()=>{
+    const btn=event.target;btn.textContent='¡Copiado!';
+    setTimeout(()=>{btn.textContent='Copiar enlace';},2000);
+  }).catch(()=>alert('Copia manualmente:\n'+txt));
+}
+
+// ============================================
+// RESP VIEW (solo lectura)
+// ============================================
+async function renderRespView(dptoId){
+  showLoading(true);
+  await loadFromSupabase();
+  showLoading(false);
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('s-resp').classList.add('active');
+  const dpto=db.dptos.find(x=>x.id===dptoId);
+  if(!dpto){document.getElementById('resp-content').innerHTML='<p style="color:#aaa">Departamento no encontrado.</p>';return;}
+  const ppl=db.people.filter(p=>p.dptoId===dptoId&&!p.baja&&!isOBCerrado(p));
+  document.getElementById('resp-title').textContent='Onboarding · '+dpto.name;
+  document.getElementById('resp-sub').textContent=ppl.length+' personas activas';
+  const urgentes=ppl.filter(p=>calcRisk(p)==='Alto');
+  const seguimiento=ppl.filter(p=>calcRisk(p)!=='Alto');
+  let html='';
+  if(urgentes.length){html+=`<div class="subgroup-label sl-alert">Requieren atención</div>`;html+=urgentes.map(p=>personCardReadOnly(p)).join('');}
+  if(seguimiento.length){html+=`<div class="subgroup-label sl-follow" style="margin-top:${urgentes.length?'12':'0'}px">En seguimiento</div>`;html+=seguimiento.map(p=>personCardReadOnly(p)).join('');}
+  if(!ppl.length)html=`<div style="font-size:13px;color:#aaa;padding:10px 0">No hay personas activas.</div>`;
+  document.getElementById('resp-content').innerHTML=html;
+}
+
+function personCardReadOnly(p){
+  const dias=calcDias(p.fechaInc),risk=calcRisk(p);
+  const uid='rc'+Math.random().toString(36).slice(2,6);
+  const he45=p.e45&&p.e45.s&&p.e45.s.some(x=>x>0),hr45=p.r45&&p.r45.s&&p.r45.s.some(x=>x>0);
+  let dimHtml='';
+  if(he45&&hr45){
+    const ed=dimAvg(p.e45.s,EQS),rd=dimAvg(p.r45.s,RQS);
+    dimHtml=`<div class="dim-grid" style="margin-bottom:16px">${DL.map((lbl,i)=>{
+      const e=ed[i],r=rd[i];
+      if(!e||!r)return`<div class="mcard"><div class="mlabel">${lbl}</div><div style="font-size:12px;color:#aaa">Sin datos</div></div>`;
+      const gap=parseFloat((e-r).toFixed(2)),gc=gapInfo(gap);
+      return`<div class="mcard"><div class="mlabel">${lbl}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end">
+          <div><div class="mval">${e.toFixed(1)}</div><div class="msmall">Empleado</div></div>
+          <div style="text-align:right"><div style="font-size:16px;font-weight:500">${r.toFixed(1)}</div><div class="msmall">Responsable</div></div>
+        </div><div class="gap-tag ${gc.cls}">GAP ${gap>0?'+':''}${gap.toFixed(1)} · ${gc.lbl}</div></div>`;
+    }).join('')}</div>`;
+  }
+  const steps=['Día 1','45 días','Reunión 2M','6 meses'];
+  const prog=`<div class="prog-wrap" style="margin-bottom:16px"><div class="prog-track">${steps.map((_,i)=>`<div class="prog-step ${i<p.etapa?'ps-done':i===p.etapa?'ps-cur':'ps-pend'}"></div>`).join('')}</div><div class="prog-labs">${steps.map(s=>`<span>${s}</span>`).join('')}</div></div>`;
+  const potencial=p.r45&&p.r45.potencial;
+  const potHtml=potencial?`<span class="${potencialCls(potencial)}">${potencial}</span>`:`<span style="font-size:12px;color:#aaa">—</span>`;
+  const obsResp=p.r45&&p.r45.mejora;
+  const vozEmp=p.r2m&&p.r2m.vozEmpleado;
+  const arH=p.areas.length?`<div class="infobox">${p.areas.map(a=>`<div style="padding:4px 0;border-bottom:0.5px solid rgba(0,0,0,0.07)">· ${a}</div>`).join('')}</div>`:`<div style="font-size:13px;color:#aaa;font-style:italic">Sin áreas definidas.</div>`;
+  const acH=p.acc.length?`<div class="infobox">${p.acc.map((a,i)=>`<div style="padding:4px 0;border-bottom:0.5px solid rgba(0,0,0,0.07)"><strong>${i+1}.</strong> ${a.t} <span style="color:#aaa">· ${a.f}</span></div>`).join('')}</div>`:`<div style="font-size:13px;color:#aaa;font-style:italic">Sin acciones definidas.</div>`;
+  const r2=p.r2m,r6h=p.r6;
+  return`<div class="acc-item" style="margin-bottom:8px;border-radius:12px">
+    <div class="acc-hdr" onclick="toggleAcc('${uid}')" style="padding:14px 16px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="avatar ${p.avc}">${p.av}</div>
+        <div><div style="font-weight:500">${p.name}</div><div style="font-size:12px;color:#888">${p.role} · ${dias} días</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="etapa-pill">${EL[p.etapa]}</span>
+        <div class="dots">${personDots(p)}</div>
+        <span class="badge ${rb(risk)}">${rl(risk)}</span>
+        <span id="chev-${uid}" style="color:#aaa;font-size:16px">›</span>
+      </div>
+    </div>
+    <div class="acc-body" id="${uid}" style="padding:16px 18px">
+      ${prog}${dimHtml}
+      <div class="section-title">Visión del Responsable</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="font-size:12px;color:#666">Potencial:</span>${potHtml}
+      </div>
+      ${obsResp?`<div class="infobox"><div class="infobox-label">Observaciones Generales y Recomendaciones</div>${obsResp}</div>`:`<div style="font-size:13px;color:#aaa;font-style:italic">Sin observaciones.</div>`}
+      <div class="section-title" style="margin-top:14px">Voz del Empleado</div>
+      ${vozEmp?`<div class="infobox" style="border-left:3px solid #BA7517"><div class="infobox-label">Reunión 2M — cómo se siente con la adaptación</div>${vozEmp}</div>`:`<div style="font-size:13px;color:#aaa;font-style:italic">Sin registro.</div>`}
+      <div class="section-title" style="margin-top:14px">Áreas de mejora</div>${arH}
+      <div class="section-title" style="margin-top:14px">Acciones recomendadas</div>${acH}
+      <div class="section-title" style="margin-top:14px">Etapas del proceso</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="rrow"><span class="rlabel">Reunión 2M</span><span class="rs ${rsC(r2.estado)}">${rsL(r2.estado)}${r2.fecha?' · '+fmtDate(r2.fecha):''}</span></div>
+        <div class="rrow"><span class="rlabel">Reunión 6M</span><span class="rs ${rsC(r6h.estado)}">${rsL(r6h.estado)}${r6h.fecha?' · '+fmtDate(r6h.fecha):''}</span></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ============================================
+// FORM
+// ============================================
+function newPerson(){editingId=null;buildForm(null,null);document.getElementById('form-title').textContent='Nueva incorporación';go('s-form');showFTab(0);}
+function newPersonInDpto(dptoId){editingId=null;buildForm(null,dptoId);document.getElementById('form-title').textContent='Nueva incorporación';go('s-form');showFTab(0);}
+function editCurrentPerson(){editingId=currentId;const p=db.people.find(x=>x.id===currentId);buildForm(p,null);document.getElementById('form-title').textContent='Editar · '+p.name;go('s-form');showFTab(0);}
+function cancelForm(){if(currentId){const p=db.people.find(x=>x.id===currentId);document.getElementById('d-title').textContent=p.name+' · '+p.role;document.getElementById('d-content').innerHTML=buildDetail(p);go('s-detail');}else go('s-main');}
+
+function showFTab(n){
+  for(let i=0;i<5;i++){
+    document.getElementById('ft-'+i).style.display=i===n?'block':'none';
+    document.getElementById('ft'+i).classList.toggle('on',i===n);
+  }
+}
+
+function buildForm(p,defDpto){
+  const sel=(opts,cur)=>opts.map(o=>`<option value="${o.v}" ${String(cur)===String(o.v)?'selected':''}>${o.l}</option>`).join('');
+  const dptoOpts=db.dptos.map(d=>({v:d.id,l:d.name}));
+  const dId=p?p.dptoId:(defDpto||'');
+  document.getElementById('notify-ok').style.display='none';
+
+  document.getElementById('ft-0').innerHTML=`
+  <div class="form-section">Datos básicos</div>
+  <div class="form-row"><label class="form-label">Nombre completo</label><input class="form-input" id="f-name" value="${v2(p&&p.name)}"></div>
+  <div class="form-row-2">
+    <div><label class="form-label">Puesto / rol</label><input class="form-input" id="f-role" value="${v2(p&&p.role)}"></div>
+    <div><label class="form-label">Fecha de incorporación</label><input class="form-input" type="date" id="f-fecha" value="${v2(p&&p.fechaInc)}"></div>
+  </div>
+  <div class="form-row-2">
+    <div><label class="form-label">Departamento</label><select class="form-input" id="f-dpto"><option value="">— Seleccionar —</option>${sel(dptoOpts,dId)}</select></div>
+    <div><label class="form-label">Etapa actual</label><select class="form-input" id="f-etapa">${sel([{v:0,l:'Sin datos'},{v:1,l:'45 días'},{v:2,l:'Reunión 2M'},{v:3,l:'6 meses'}],p?p.etapa:0)}</select></div>
+  </div>
+  <div class="form-section">Plan de acción</div>
+  <div id="areas-wrap">${(p?p.areas:[]).map((a,i)=>`<div class="form-row" id="ar-${i}" style="display:flex;gap:8px"><input class="form-input area-inp" value="${a}" style="flex:1"><button type="button" class="btn" onclick="document.getElementById('ar-${i}').remove()">×</button></div>`).join('')}</div>
+  <button type="button" class="btn" onclick="addRow('areas-wrap','area-inp','Área de mejora')" style="margin-bottom:12px">+ Área de mejora</button>
+  <div id="acc-wrap">${(p?p.acc:[]).map((a,i)=>`<div class="form-row" id="ac-${i}"><div style="display:grid;grid-template-columns:2fr 1fr auto;gap:8px;align-items:center"><input class="form-input acc-t" placeholder="Acción" value="${a.t}"><input class="form-input acc-f" placeholder="Frecuencia" value="${a.f}"><button type="button" class="btn" onclick="document.getElementById('ac-${i}').remove()">×</button></div></div>`).join('')}</div>
+  <button type="button" class="btn" onclick="addAccRow()" style="margin-bottom:28px">+ Acción recomendada</button>`;
+
+  document.getElementById('ft-1').innerHTML=buildEncFormHtml('e45',EQS,p?p.e45:null,true);
+  document.getElementById('ft-2').innerHTML=buildEncFormHtml('r45',RQS,p?p.r45:null,false);
+  document.getElementById('ft-3').innerHTML=buildReunionFormHtml('r2m',p?p.r2m:null,'Reunión 2 meses',true);
+  document.getElementById('ft-4').innerHTML=buildReunionFormHtml('r6m',p?p.r6:null,'Reunión 6 meses',false);
+}
+
+function buildEncFormHtml(pfx,qs,data,isEmp){
+  const scores=data&&data.s||[];
+  let h=`<div class="form-section">${isEmp?'Empleado':'Responsable'} · Encuesta 45 días</div>
+  <p style="font-size:12px;color:#888;margin-bottom:16px">Puntúa del 1 al 5</p>`;
+  h+=qs.map((q,i)=>`
+    <div class="form-row"><label class="form-label">${i+1}. ${q.t}</label>
+    <div class="stars-row" id="${pfx}-${i}">
+      ${[1,2,3,4,5].map(n=>`<button type="button" class="star-btn ${scores[i]===n?'sel':''}" onclick="setStar('${pfx}-${i}',${n})">${n}</button>`).join('')}
+      <button type="button" class="btn" style="margin-left:6px;font-size:11px;padding:4px 8px" onclick="clearStar('${pfx}-${i}')">—</button>
+    </div></div>`).join('');
+  if(isEmp){
+    h+=`<div class="form-section">Comentarios</div>
+    <div class="form-row"><label class="form-label">¿En qué necesita más apoyo?</label><textarea class="form-input" id="${pfx}-nec">${data?v2(data.necApoyo):''}</textarea></div>
+    <div class="form-row"><label class="form-label">¿Qué le ha ayudado más?</label><textarea class="form-input" id="${pfx}-ayu">${data?v2(data.ayudo):''}</textarea></div>
+    <div class="form-row"><label class="form-label">¿Qué mejoraría?</label><textarea class="form-input" id="${pfx}-mej">${data?v2(data.mejorar):''}</textarea></div>`;
+  } else {
+    h+=`<div class="form-section">Visión y Proyección</div>
+    <div class="form-row"><label class="form-label">Nivel de Potencial de Desarrollo</label>
+      <select class="form-input" id="${pfx}-potencial">
+        <option value="">— Seleccionar —</option>
+        <option value="Bajo" ${data&&data.potencial==='Bajo'?'selected':''}>Bajo — margen limitado de evolución</option>
+        <option value="Medio" ${data&&data.potencial==='Medio'?'selected':''}>Medio — buen desarrollo en su rol actual</option>
+        <option value="Alto" ${data&&data.potencial==='Alto'?'selected':''}>Alto — alto potencial de crecimiento</option>
+      </select></div>
+    <div class="form-row-2">
+      <div><label class="form-label">Nivel de riesgo</label>
+        <select class="form-input" id="${pfx}-riesgo">
+          ${['','Bajo','Medio','Alto'].map(o=>`<option value="${o}" ${data&&data.nivelRiesgo===o?'selected':''}>${o||'—'}</option>`).join('')}
+        </select></div>
+      <div><label class="form-label">¿Volvería a contratarle?</label>
+        <select class="form-input" id="${pfx}-vol">
+          ${[['','—'],['si','Sí'],['no','No']].map(([v,l])=>`<option value="${v}" ${data&&data.volveria===v?'selected':''}>${l}</option>`).join('')}
+        </select></div>
+    </div>
+    <div class="form-row"><label class="form-label">Observaciones Generales y Recomendaciones</label>
+      <textarea class="form-input" id="${pfx}-mej" rows="4">${data?v2(data.mejora):''}</textarea></div>`;
+  }
+  return h;
+}
+
+function buildReunionFormHtml(pfx,data,title,is2m){
+  let h=`<div class="form-section">${title}</div>
+  <div class="form-row-2">
+    <div><label class="form-label">Estado</label>
+      <select class="form-input" id="${pfx}-est">
+        ${[['pendiente','Pendiente'],['celebrada','Celebrada'],['cancelada','Cancelada']].map(([v,l])=>`<option value="${v}" ${(!data&&v==='pendiente')||(data&&data.estado===v)?'selected':''}>${l}</option>`).join('')}
+      </select></div>
+    <div><label class="form-label">Fecha</label><input class="form-input" type="date" id="${pfx}-fec" value="${data?v2(data.fecha):''}"></div>
+  </div>
+  <div class="form-row"><label class="form-label">Notas de la reunión</label>
+    <textarea class="form-input" id="${pfx}-not" rows="5">${data?v2(data.notas):''}</textarea></div>`;
+  if(is2m){
+    h+=`<div class="form-row" style="margin-top:6px">
+      <label class="form-label" style="color:#854F0B">La Voz del Empleado</label>
+      <textarea class="form-input" id="${pfx}-voz" rows="4" placeholder="Cómo se siente con la adaptación...">${data?v2(data.vozEmpleado):''}</textarea></div>`;
+  }
+  return h;
+}
+
+function addRow(wid,cls,ph){
+  const w=document.getElementById(wid);const d=document.createElement('div');const i='r'+Date.now();
+  d.id=i;d.className='form-row';d.style.cssText='display:flex;gap:8px';
+  d.innerHTML=`<input class="form-input ${cls}" placeholder="${ph}" style="flex:1"><button type="button" class="btn" onclick="document.getElementById('${i}').remove()">×</button>`;
+  w.appendChild(d);
+}
+function addAccRow(){
+  const w=document.getElementById('acc-wrap');const d=document.createElement('div');const i='ac'+Date.now();
+  d.id=i;d.className='form-row';
+  d.innerHTML=`<div style="display:grid;grid-template-columns:2fr 1fr auto;gap:8px;align-items:center"><input class="form-input acc-t" placeholder="Acción"><input class="form-input acc-f" placeholder="Frecuencia"><button type="button" class="btn" onclick="document.getElementById('${i}').remove()">×</button></div>`;
+  w.appendChild(d);
+}
+
+async function saveForm(){
+  const name=gv('f-name');if(!name){alert('El nombre es obligatorio.');return;}
+  const e45s=getStarArr('e45',EQS.length);
+  const r45s=getStarArr('r45',RQS.length);
+  const areas=[...document.querySelectorAll('.area-inp')].map(x=>x.value.trim()).filter(Boolean);
+  const ts=[...document.querySelectorAll('.acc-t')],fs=[...document.querySelectorAll('.acc-f')];
+  const acc=ts.map((t,i)=>({t:t.value.trim(),f:fs[i]?fs[i].value.trim():''})).filter(a=>a.t);
+  const rec={
+    name,role:gv('f-role'),fechaInc:gv('f-fecha'),
+    dptoId:gv('f-dpto'),etapa:parseInt(gv('f-etapa')||'0'),
+    e45:{s:e45s,necApoyo:gv('e45-nec'),ayudo:gv('e45-ayu'),mejorar:gv('e45-mej')},
+    r45:{s:r45s,nivelRiesgo:gv('r45-riesgo'),potencial:gv('r45-potencial'),volveria:gv('r45-vol'),mejora:gv('r45-mej')},
+    r2m:{estado:gv('r2m-est','pendiente'),fecha:gv('r2m-fec'),notas:gv('r2m-not'),vozEmpleado:gv('r2m-voz')},
+    r6:{estado:gv('r6m-est','pendiente'),fecha:gv('r6m-fec'),notas:gv('r6m-not')},
+    areas,acc
+  };
+  if(editingId){
+    const idx=db.people.findIndex(x=>x.id===editingId);
+    const prev=db.people[idx];
+    rec.id=editingId;rec.av=prev.av;rec.avc=prev.avc;rec.baja=prev.baja||null;
+    db.people[idx]={...prev,...rec};
+    await savePerson(db.people[idx]);
+    editingId=null;
+  } else {
+    const av=rec.name.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+    const avc=AVC[db.people.length%AVC.length];
+    rec.id='p'+Date.now();rec.av=av;rec.avc=avc;rec.baja=null;
+    db.people.push(rec);
+    await savePerson(rec);
+  }
+  document.getElementById('notify-ok').style.display='block';
+  setTimeout(()=>{document.getElementById('notify-ok').style.display='none';},2500);
+}
+
+// ============================================
+// PRINT
+// ============================================
+function openPrintPerson(){
+  const p=db.people.find(x=>x.id===currentId);
+  document.getElementById('print-title').textContent='Informe OB · '+p.name;
+  document.getElementById('print-back-btn').onclick=()=>go('s-detail');
+  document.getElementById('print-content').innerHTML=buildPrint([p]);
+  go('s-print');
+}
+function openPrintDpto(dptoId){
+  const dpto=db.dptos.find(d=>d.id===dptoId);
+  const ppl=db.people.filter(p=>p.dptoId===dptoId&&!p.baja);
+  document.getElementById('print-title').textContent='Informe OB · '+dpto.name;
+  document.getElementById('print-back-btn').onclick=()=>go('s-main');
+  const today=new Date().toLocaleDateString('es-ES',{day:'2-digit',month:'long',year:'numeric'});
+  document.getElementById('print-content').innerHTML=`<div style="margin-bottom:24px">
+    <div style="font-size:20px;font-weight:500;margin-bottom:4px">Informe onboarding · ${dpto.name}</div>
+    <div style="font-size:13px;color:#666">Generado el ${today} · ${ppl.length} personas</div></div>`+buildPrint(ppl);
+  go('s-print');
+}
+
+function buildPrint(ppl){
+  return ppl.map(p=>{
+    const dpto=db.dptos.find(d=>d.id===p.dptoId);
+    const dias=calcDias(p.fechaInc),risk=calcRisk(p);
+    const steps=['Día 1','45 días','Reunión 2M','6 meses'];
+    const prog=`<div class="prog-wrap"><div class="prog-track">${steps.map((_,i)=>`<div class="prog-step ${i<p.etapa?'ps-done':i===p.etapa?'ps-cur':'ps-pend'}"></div>`).join('')}</div><div class="prog-labs">${steps.map(s=>`<span>${s}</span>`).join('')}</div></div>`;
+    const he45=p.e45&&p.e45.s&&p.e45.s.some(x=>x>0),hr45=p.r45&&p.r45.s&&p.r45.s.some(x=>x>0);
+    let gapHtml='';
+    if(he45&&hr45){
+      const ed=dimAvg(p.e45.s,EQS),rd=dimAvg(p.r45.s,RQS);
+      gapHtml=`<div class="dim-grid" style="margin:12px 0">${DL.map((lbl,i)=>{
+        const e=ed[i],r=rd[i];if(!e||!r)return`<div class="mcard"><div class="mlabel">${lbl}</div><div style="font-size:12px;color:#aaa">Sin datos</div></div>`;
+        const gap=parseFloat((e-r).toFixed(2)),gc=gapInfo(gap);
+        return`<div class="mcard"><div class="mlabel">${lbl}</div><div style="display:flex;justify-content:space-between"><div><div style="font-size:16px;font-weight:500">${e.toFixed(1)}</div><div class="msmall">Empleado</div></div><div style="text-align:right"><div style="font-size:15px;font-weight:500">${r.toFixed(1)}</div><div class="msmall">Responsable</div></div></div><div class="gap-tag ${gc.cls}">GAP ${gap>0?'+':''}${gap.toFixed(1)} · ${gc.lbl}</div></div>`;
+      }).join('')}</div>`;
+    }
+    const r2=p.r2m,r6h=p.r6;
+    const arH=p.areas.length?p.areas.map(a=>`<div style="font-size:12px;padding:3px 0;border-bottom:0.5px solid rgba(0,0,0,0.07)">· ${a}</div>`).join(''):`<div style="font-size:12px;color:#aaa">Sin definir.</div>`;
+    const acH=p.acc.length?p.acc.map((a,i)=>`<div style="font-size:12px;padding:4px 0;border-bottom:0.5px solid rgba(0,0,0,0.07)"><b>${i+1}.</b> ${a.t} <span style="color:#aaa">· ${a.f}</span></div>`).join(''):`<div style="font-size:12px;color:#aaa">Sin definir.</div>`;
+    return`<div style="border:0.5px solid rgba(0,0,0,0.1);border-radius:12px;padding:16px 18px;margin-bottom:20px;page-break-inside:avoid">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;padding-bottom:10px;border-bottom:0.5px solid rgba(0,0,0,0.08)">
+        <div class="avatar ${p.avc}">${p.av}</div>
+        <div style="flex:1"><div style="font-weight:500;font-size:15px">${p.name}</div><div style="font-size:12px;color:#888">${p.role}${dpto?' · '+dpto.name:''} · ${dias} días</div></div>
+        <div style="display:flex;gap:8px"><span class="badge ${rb(risk)}">${rl(risk)}</span></div>
+      </div>
+      ${prog}${gapHtml}
+      ${p.r45.mejora?`<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Visión del Responsable</div><div class="infobox">${p.r45.mejora}</div></div>`:''}
+      ${p.r2m&&p.r2m.vozEmpleado?`<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:600;color:#BA7517;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Voz del Empleado</div><div class="infobox" style="border-left:3px solid #BA7517">${p.r2m.vozEmpleado}</div></div>`:''}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">
+        <div><div style="font-size:10px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Áreas de mejora</div>${arH}
+          <div style="font-size:10px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:.05em;margin:10px 0 6px">Acciones</div>${acH}</div>
+        <div><div style="font-size:10px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Reuniones</div>
+          <div style="font-size:12px;margin-bottom:6px"><b>2M:</b> <span class="rs ${rsC(r2.estado)}">${rsL(r2.estado)}</span>${r2.fecha?' · '+fmtDate(r2.fecha):''}</div>
+          <div style="font-size:12px"><b>6M:</b> <span class="rs ${rsC(r6h.estado)}">${rsL(r6h.estado)}</span>${r6h.fecha?' · '+fmtDate(r6h.fecha):''}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function manageDptos(){
+  const cur=db.dptos.map(d=>d.name).join(', ');
+  const input=prompt(`Departamentos actuales:\n${cur}\n\nEscribe los nombres separados por coma:`);
+  if(!input)return;
+  const nombres=input.split(',').map(s=>s.trim()).filter(Boolean);
+  db.dptos=nombres.map((name,i)=>{const ex=db.dptos.find(d=>d.name.toLowerCase()===name.toLowerCase());return ex||{id:'d'+Date.now()+i,name};});
+  await saveDptos();
+  renderMain();
+}
+
+// ============================================
+// INIT
+// ============================================
+async function init(){
+  const urlParams=new URLSearchParams(window.location.search);
+  const deptParam=urlParams.get('dept');
+  if(deptParam){
+    await renderRespView(deptParam);
+  } else {
+    await loadFromSupabase();
+    showLoading(false);
+    renderMain();
+  }
+}
+
+init();
+</script>
+</body>
+</html>
