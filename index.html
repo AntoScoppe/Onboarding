@@ -742,6 +742,7 @@ function setSort(s,btn){
   renderDptos(currentDpto);
 }
 
+function filterDpto(id,btn){
   document.querySelectorAll('.dtab').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');currentDpto=id;renderDptos(id);
 }
